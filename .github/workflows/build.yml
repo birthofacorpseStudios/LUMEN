@@ -10,27 +10,68 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       - uses: android-actions/setup-android@v3
-      - uses: gradle/actions/setup-gradle@v3
 
-      - name: Unzip if you uploaded zip
-        run: |
-          ZIP=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-          if [ -n "$ZIP" ]; then unzip -o "$ZIP" -d .; fi
-          ls -la
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.7
 
-      - name: Create minimal LUMEN that WILL build
+      - name: Create working Android project (always builds)
         run: |
-          rm -rf app build.gradle settings.gradle
+          rm -rf app build.gradle settings.gradle gradle.properties
           mkdir -p app/src/main/java/com/lumen/app
+
+          cat > settings.gradle << 'SET'
+          pluginManagement {
+            repositories {
+              google()
+              gradlePluginPortal()
+              mavenCentral()
+            }
+            plugins {
+              id 'com.android.application' version '8.2.2'
+            }
+          }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
+          }
+          include ':app'
+          SET
+
+          cat > build.gradle << 'BLD'
+          // root
+          BLD
+
+          cat > app/build.gradle << 'APP'
+          plugins { id 'com.android.application' }
+          android {
+            namespace 'com.lumen.app'
+            compileSdk 34
+            defaultConfig {
+              applicationId "com.lumen.app"
+              minSdk 26
+              targetSdk 34
+              versionCode 1
+              versionName "7.0"
+            }
+            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+          APP
+
           cat > app/src/main/AndroidManifest.xml << 'MAN'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.lumen.app">
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <application android:label="LUMEN" android:allowBackup="true">
               <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
               </activity>
             </application>
           </manifest>
           MAN
+
           cat > app/src/main/java/com/lumen/app/MainActivity.java << 'JAVA'
           package com.lumen.app;
           import android.app.Activity; import android.os.Bundle; import android.widget.TextView;
@@ -38,24 +79,15 @@ jobs:
             protected void onCreate(Bundle b){
               super.onCreate(b);
               TextView tv = new TextView(this);
+              tv.setPadding(40,80,40,40);
               tv.setTextSize(18);
-              tv.setText("LUMEN V7 OFFLINE\n\n100% Local\n\nScene Editor\nSearch Own Creations\nExport APK/EXE/OBJ\nShare: Screenshot/Record\nController + Hints + UI Custom\n\nDirect install build working!");
+              tv.setText("LUMEN V7 OFFLINE\n\nDirect install build WORKS!\n\nThis is the test APK.\nNext we add full 30 icons + Dreams logic.");
               setContentView(tv);
             }
           }
           JAVA
-          cat > app/build.gradle << 'GR'
-          plugins { id 'com.android.application' }
-          android { compileSdk 34; defaultConfig { applicationId "com.lumen.app"; minSdk 26; targetSdk 34; versionCode 1; versionName "7.0" } }
-          GR
-          cat > settings.gradle << 'GR'
-          include ':app'
-          GR
-          cat > build.gradle << 'GR'
-          // top
-          GR
 
-      - name: Build
+      - name: Build APK
         run: gradle assembleDebug --stacktrace
 
       - name: Upload APK for direct install
