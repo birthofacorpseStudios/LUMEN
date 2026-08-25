@@ -10,26 +10,26 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       - uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle 8.7
-        uses: gradle/actions/setup-gradle@v3
+      - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.7
 
-      - name: Create working Android project (always builds)
+      - name: Unzip FULL LUMEN
         run: |
-          rm -rf app build.gradle settings.gradle gradle.properties
-          mkdir -p app/src/main/java/com/lumen/app
+          ZIP=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+          echo "Found $ZIP"
+          unzip -o "$ZIP" -d .
+          ls -la LUMEN_APK
 
+      - name: Fix gradle files for FULL build
+        run: |
+          cd LUMEN_APK
           cat > settings.gradle << 'SET'
           pluginManagement {
-            repositories {
-              google()
-              gradlePluginPortal()
-              mavenCentral()
-            }
+            repositories { google(); gradlePluginPortal(); mavenCentral() }
             plugins {
               id 'com.android.application' version '8.2.2'
+              id 'org.jetbrains.kotlin.android' version '1.9.22'
             }
           }
           dependencyResolutionManagement {
@@ -38,60 +38,37 @@ jobs:
           }
           include ':app'
           SET
-
           cat > build.gradle << 'BLD'
-          // root
+          plugins {
+            id 'com.android.application' version '8.2.2' apply false
+            id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+          }
           BLD
-
           cat > app/build.gradle << 'APP'
-          plugins { id 'com.android.application' }
+          plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
           android {
             namespace 'com.lumen.app'
             compileSdk 34
-            defaultConfig {
-              applicationId "com.lumen.app"
-              minSdk 26
-              targetSdk 34
-              versionCode 1
-              versionName "7.0"
-            }
+            defaultConfig { applicationId "com.lumen.app"; minSdk 26; targetSdk 34; versionCode 7; versionName "7.0-Full-Offline" }
             compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+            kotlinOptions { jvmTarget = '17' }
+          }
+          dependencies {
+            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.compose.material3:material3:1.1.2'
+            implementation 'androidx.compose.ui:ui:1.5.8'
+            implementation 'androidx.compose.runtime:runtime:1.5.8'
+            implementation 'androidx.activity:activity-compose:1.8.2'
           }
           APP
 
-          cat > app/src/main/AndroidManifest.xml << 'MAN'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application android:label="LUMEN" android:allowBackup="true">
-              <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter>
-                  <action android:name="android.intent.action.MAIN"/>
-                  <category android:name="android.intent.category.LAUNCHER"/>
-                </intent-filter>
-              </activity>
-            </application>
-          </manifest>
-          MAN
+      - name: Build FULL APK
+        run: |
+          cd LUMEN_APK
+          gradle assembleDebug --stacktrace
 
-          cat > app/src/main/java/com/lumen/app/MainActivity.java << 'JAVA'
-          package com.lumen.app;
-          import android.app.Activity; import android.os.Bundle; import android.widget.TextView;
-          public class MainActivity extends Activity {
-            protected void onCreate(Bundle b){
-              super.onCreate(b);
-              TextView tv = new TextView(this);
-              tv.setPadding(40,80,40,40);
-              tv.setTextSize(18);
-              tv.setText("LUMEN V7 OFFLINE\n\nDirect install build WORKS!\n\nThis is the test APK.\nNext we add full 30 icons + Dreams logic.");
-              setContentView(tv);
-            }
-          }
-          JAVA
-
-      - name: Build APK
-        run: gradle assembleDebug --stacktrace
-
-      - name: Upload APK for direct install
+      - name: Upload FULL APK
         uses: actions/upload-artifact@v4
         with:
-          name: LUMEN-direct-install-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: LUMEN-FULL-V7-direct-install
+          path: LUMEN_APK/app/build/outputs/apk/debug/app-debug.apk
