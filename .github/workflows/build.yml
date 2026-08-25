@@ -5,64 +5,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
+          
       - uses: android-actions/setup-android@v3
+      
+      - uses: gradle/actions/setup-gradle@v3
 
-      - name: Unzip project
+      - name: Show what you uploaded
         run: |
           ls -la
+          find . -type f -name "*.zip" -o -name "gradlew" | head -20
+
+      - name: Unzip if you uploaded the zip
+        run: |
           ZIP=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-          echo "Found $ZIP"
-          if [ -n "$ZIP" ]; then unzip -o "$ZIP" -d .; fi
+          if [ -n "$ZIP" ]; then
+            echo "Unzipping $ZIP"
+            unzip -o "$ZIP" -d .
+          fi
+          ls -la
           ls -la LUMEN_APK || true
 
       - name: Build APK
         run: |
-          if [ -f "LUMEN_APK/gradlew" ]; then
+          if [ -d "LUMEN_APK/app" ]; then
             cd LUMEN_APK
-            chmod +x gradlew
-            ./gradlew assembleDebug --stacktrace
+            gradle assembleDebug --stacktrace
+          elif [ -d "app" ]; then
+            gradle assembleDebug --stacktrace
           else
-            echo "No gradlew, creating minimal installable LUMEN APK"
-            mkdir -p app/src/main/java/com/lumen/app
-            mkdir -p app/src/main/res
-            cat > app/src/main/AndroidManifest.xml << 'MAN'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.lumen.app">
-            <application android:label="LUMEN">
-              <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-              </activity>
-            </application>
-          </manifest>
-          MAN
-            cat > app/src/main/java/com/lumen/app/MainActivity.java << 'JAVA'
-          package com.lumen.app;
-          import android.app.Activity; import android.os.Bundle; import android.widget.TextView;
-          public class MainActivity extends Activity {
-            protected void onCreate(Bundle b){ super.onCreate(b);
-              TextView tv = new TextView(this);
-              tv.setText("LUMEN V7 OFFLINE\n100% Local\nScene Editor + Search + Export + Controller + Hints + UI");
-              setContentView(tv);
-            }
-          }
-          JAVA
-            cat > app/build.gradle << 'G'
-          plugins { id 'com.android.application' }
-          android { compileSdk 34; defaultConfig { applicationId "com.lumen.app"; minSdk 26; targetSdk 34; versionCode 1; versionName "7.0" } }
-          G
-            cat > settings.gradle << 'G'
-          include ':app'
-          G
-            cat > build.gradle << 'G'
-          // top
-          G
-            gradle assembleDebug
+            echo "No project found"
+            exit 1
           fi
 
-      - name: Upload APK
+      - name: Find APK
+        run: find . -name "*.apk" -type f
+
+      - name: Upload APK for direct install
         uses: actions/upload-artifact@v4
         with:
           name: LUMEN-direct-install-apk
